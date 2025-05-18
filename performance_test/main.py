@@ -43,6 +43,14 @@ async def main():
     metrics = monitor.get_metrics()
     stats = monitor.calculate_statistics()
     
+    # 添加测试参数到stats中
+    stats.update({
+        "model_name": args.model,
+        "qps": args.qps,
+        "duration": args.duration,
+        "token_length": args.token_length
+    })
+    
     # 保存结果
     collector.save_results(results, metrics, stats)
     

@@ -40,11 +40,47 @@ class LoadGenerator:
     async def generate_prompt(self) -> str:
         """生成测试用的提示词"""
         questions = [
+            # 基础概念类
             "什么是人工智能？",
             "解释一下机器学习的基本概念",
             "深度学习与传统机器学习有什么区别？",
             "神经网络的工作原理是什么？",
-            "什么是自然语言处理？"
+            "什么是自然语言处理？",
+            
+            # 技术细节类
+            "请详细解释反向传播算法",
+            "什么是注意力机制？它在Transformer中是如何工作的？",
+            "解释一下梯度消失和梯度爆炸问题",
+            "什么是过拟合？如何防止过拟合？",
+            "请解释一下卷积神经网络的结构",
+            
+            # 应用场景类
+            "人工智能在医疗领域有哪些应用？",
+            "自动驾驶技术目前面临哪些主要挑战？",
+            "如何将机器学习应用到金融风控中？",
+            "人工智能在智能制造中的应用场景有哪些？",
+            "机器学习在推荐系统中是如何工作的？",
+            
+            # 编程相关类
+            "如何使用Python实现一个简单的神经网络？",
+            "解释一下PyTorch和TensorFlow的主要区别",
+            "如何优化深度学习模型的训练速度？",
+            "什么是数据增强？请给出几个具体的例子",
+            "如何评估机器学习模型的性能？",
+            
+            # 前沿发展类
+            "大语言模型的发展趋势是什么？",
+            "多模态AI技术目前面临哪些挑战？",
+            "量子计算对人工智能发展有什么影响？",
+            "联邦学习的主要优势是什么？",
+            "AI安全与伦理问题主要包含哪些方面？",
+            
+            # 实践问题类
+            "如何处理不平衡数据集？",
+            "如何选择合适的机器学习算法？",
+            "特征工程的主要方法有哪些？",
+            "如何解释机器学习模型的预测结果？",
+            "模型部署时需要注意哪些问题？"
         ]
         question = random.choice(questions)
         return self.template.format(question=question)
@@ -200,19 +236,23 @@ class LoadGenerator:
             tasks = []
             start_time = time.time()
             end_time = start_time + self.duration
+            total_requests = 0
+            completed_requests = 0
+            total_response_time = 0
             
-            with tqdm(total=self.duration, desc="Running Load Test") as pbar:
+            # 创建进度条，使用总请求数作为进度
+            with tqdm(total=self.qps * self.duration, desc="Running Load Test") as pbar:
+                # 第一阶段：创建任务
                 while time.time() < end_time:
                     # 控制QPS
                     if len(tasks) < self.qps:
                         task = asyncio.create_task(self.make_request(session))
                         tasks.append(task)
+                        total_requests += 1
+                        pbar.total = total_requests  # 更新总请求数
                     
                     # 等待一小段时间以控制QPS
                     await asyncio.sleep(1/self.qps)
-                    
-                    # 更新进度条
-                    pbar.update(1)
                     
                     # 清理已完成的任务
                     done_tasks = [t for t in tasks if t.done()]
@@ -220,10 +260,32 @@ class LoadGenerator:
                         result = await task
                         self.results.append(result)
                         tasks.remove(task)
-            
-            # 等待所有剩余任务完成
-            if tasks:
-                remaining_results = await asyncio.gather(*tasks)
-                self.results.extend(remaining_results)
+                        completed_requests += 1
+                        if result.get('response_time'):
+                            total_response_time += result['response_time']
+                        pbar.update(1)  # 更新已完成的任务数
+                    
+                    # 更新进度条信息
+                    status = f"Completed: {completed_requests}/{total_requests}"
+                    pbar.set_postfix_str(status)
+                
+                # 第二阶段：等待剩余任务完成
+                if tasks:
+                    pbar.set_description("Running Load Test")
+                    while tasks:
+                        done_tasks = [t for t in tasks if t.done()]
+                        for task in done_tasks:
+                            result = await task
+                            self.results.append(result)
+                            tasks.remove(task)
+                            completed_requests += 1
+                            if result.get('response_time'):
+                                total_response_time += result['response_time']
+                            pbar.update(1)  # 更新已完成的任务数
+                        
+                        # 更新进度条信息
+                        status = f"Completed: {completed_requests}/{total_requests}"
+                        pbar.set_postfix_str(status)
+                        await asyncio.sleep(0.1)
         
         return self.results 

@@ -292,6 +292,26 @@ class DataCollector:
     
     def _generate_html_report(self, metrics: Dict[str, List[float]], stats: Dict[str, Dict[str, float]], charts_path: str):
         """生成HTML格式的测试报告"""
+        # 获取测试时间信息
+        test_duration = stats.get('test_duration', {})
+        try:
+            start_time = datetime.fromtimestamp(float(test_duration.get('start_time', 0))).strftime('%Y-%m-%d %H:%M:%S')
+            end_time = datetime.fromtimestamp(float(test_duration.get('end_time', 0))).strftime('%Y-%m-%d %H:%M:%S')
+        except (ValueError, TypeError):
+            start_time = test_duration.get('start_time', 'N/A')
+            end_time = test_duration.get('end_time', 'N/A')
+        
+        duration = test_duration.get('duration_seconds', 0)
+
+        # 获取测试参数信息
+        test_params = {
+            "model_name": stats.get('model_name', 'N/A'),
+            "qps": stats.get('qps', 'N/A'),
+            "duration": stats.get('duration', 'N/A'),
+            "token_length": stats.get('token_length', 'N/A'),
+            "output_dir": self.results_dir
+        }
+        
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -300,7 +320,7 @@ class DataCollector:
             <title>性能测试报告</title>
             <style>
                 body {{ font-family: Arial, sans-serif; margin: 20px; }}
-                .container {{ max-width: 1200px; margin: 0 auto; }}
+                .container {{ max-width: 100%; margin: 0 auto; }}
                 .section {{ margin-bottom: 30px; }}
                 .metric-card {{ 
                     border: 1px solid #ddd;
@@ -343,6 +363,25 @@ class DataCollector:
                     color: #666;
                     margin: 5px 0;
                 }}
+                .test-info {{
+                    border: 1px solid #ddd;
+                    padding: 20px;
+                    margin: 10px;
+                    border-radius: 5px;
+                    background-color: #f9f9f9;
+                }}
+                .test-info h3 {{
+                    color: #333;
+                    margin-top: 0;
+                }}
+                .test-info p {{
+                    margin: 5px 0;
+                    color: #666;
+                }}
+                .test-info .param-name {{
+                    font-weight: bold;
+                    color: #333;
+                }}
                 iframe {{ 
                     width: 100%;
                     height: 1200px;
@@ -353,6 +392,24 @@ class DataCollector:
         <body>
             <div class="container">
                 <h1>性能测试报告</h1>
+
+                <div class="section">
+                    <h2>测试信息</h2>
+                    <div class="test-info">
+                        <h3>时间信息</h3>
+                        <p><span class="param-name">开始时间：</span>{start_time}</p>
+                        <p><span class="param-name">结束时间：</span>{end_time}</p>
+                        <p><span class="param-name">总持续时间：</span>{duration:.2f} 秒</p>
+                        
+                        <h3>测试参数</h3>
+                        <p><span class="param-name">模型名称：</span>{test_params['model_name']}</p>
+                        <p><span class="param-name">QPS：</span>{test_params['qps']}</p>
+                        <p><span class="param-name">测试时长：</span>{test_params['duration']} 秒</p>
+                        <p><span class="param-name">Token长度：</span>{test_params['token_length']}</p>
+                        <p><span class="param-name">输出目录：</span>{test_params['output_dir']}</p>
+                    </div>
+                </div>
+
                 <div class="section">
                     <h2>测试概览</h2>
                     <div class="metric-card">
