@@ -1,6 +1,6 @@
 # 大模型性能测试框架
 
-这是一个用于测试大模型服务性能的测试框架，支持负载测试、性能监控和数据收集。
+这是一个用于测试服务器在处理deepseek等大模型推理任务时的性能的测试框架，支持负载测试、性能监控和数据收集。
 
 ## 功能特点
 
@@ -9,13 +9,16 @@
 - 实时监控系统资源使用情况（CPU、内存、GPU）
 - 自动收集和保存测试数据
 - 生成详细的测试报告
+- 支持首Token延迟统计
+- 支持吞吐量分析
+- 支持请求速率统计
 
 ## 安装
 
 1. 克隆仓库：
 ```bash
 git clone [repository_url]
-cd ai-performance
+cd deepseek-performance-test
 ```
 
 2. 安装依赖：
@@ -27,11 +30,12 @@ pip install -r requirements.txt
 
 基本用法：
 ```bash
-python performance_test/main.py --url http://your-model-service-url --qps 10 --duration 300
+python performance_test/main.py --url http://your-model-service-url --model deepseek-r1:1.5b --qps 10 --duration 300
 ```
 
 参数说明：
-- `--url`: 目标服务URL（必需）
+- `--url`: 目标服务URL（默认：http://localhost:8001/api/generate）
+- `--model`: Ollama模型名称（默认：deepseek-r1:1.5b）
 - `--qps`: 每秒请求数（默认：10）
 - `--duration`: 测试持续时间，单位秒（默认：300）
 - `--token-length`: 生成token的最大长度（默认：1000）
@@ -39,11 +43,17 @@ python performance_test/main.py --url http://your-model-service-url --qps 10 --d
 
 ## 测试结果
 
-测试结果将保存在指定的输出目录中，包含以下文件：
-- `load_test_results.csv`: 负载测试详细结果
-- `performance_metrics.csv`: 性能指标数据
-- `performance_stats.json`: 性能统计信息
-- `test_report.json`: 测试总结报告
+测试结果将保存在指定的输出目录中，包含以下目录：
+- `performance_reports`
+- `test_results`
+
+测试报告包含以下关键指标：
+- 请求统计（总数、成功数、错误率、超时率）
+- 响应时间统计（平均、P50/P90/P95/P99、最大/最小）
+- 首Token延迟统计（平均、P50/P90/P95/P99、最大/最小）
+- 吞吐量统计（tokens/s）
+- 请求速率统计（requests/s）
+- 系统资源使用情况（CPU、内存、GPU使用率）
 
 ## 注意事项
 
