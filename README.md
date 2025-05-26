@@ -1,7 +1,5 @@
 # 大模型性能测试框架
 
-这是一个完全用AI实现的项目。
-
 该项目用于测试服务器在处理deepseek等大模型推理任务时的性能的测试框架，支持负载测试、性能监控和数据收集。
 
 ## 功能特点
@@ -48,6 +46,8 @@ python performance_test/main.py --url http://your-model-service-url --model deep
 测试结果将保存在指定的输出目录中，包含以下目录：
 - `performance_reports`
 - `test_results`
+   - `test_xxxxx`
+     - `test_report.html`   # 完整测试报告页面
 
 测试报告包含以下关键指标：
 - 请求统计（总数、成功数、错误率、超时率）

@@ -31,6 +31,9 @@ class PerformanceMonitor:
         self.request_window = deque()  # 请求时间窗口
         self.token_window = deque()    # Token时间窗口
         
+        # 线程安全
+        self._lock = threading.Lock()  # 添加锁以保护共享数据
+        
         # 错误率指标
         self.error_count = 0
         self.timeout_count = 0
@@ -68,12 +71,21 @@ class PerformanceMonitor:
                 #self.logger.info(f"GPU监控已初始化，检测到 {device_count} 个GPU设备")
         except Exception as e:
             self.logger.warning(f"GPU监控初始化失败: {str(e)}")
+        
+        self.token_timestamps = deque()  # 存储每个token生成的时间戳
+        self.last_metric_update = time.time()
+        self.metric_update_interval = 1.0  # 每秒更新一次指标
     
     def _monitor_loop(self):
         """持续监控循环"""
         while self.monitoring:
             try:
+                current_time = time.time()
                 self._collect_metrics()
+                
+                # 定期更新吞吐量指标，即使没有新的请求或token
+                self._update_throughput_metrics(current_time)
+                
                 #self._log_current_metrics()
                 self._save_real_time_metrics()
                 time.sleep(self.interval)
@@ -198,25 +210,34 @@ class PerformanceMonitor:
     
     def _update_throughput_metrics(self, current_time: float):
         """更新吞吐量指标"""
-        # 移除超出时间窗口的请求
-        while self.request_window and current_time - self.request_window[0][0] > self.window_size:
-            self.request_window.popleft()
-        
-        while self.token_window and current_time - self.token_window[0][0] > self.window_size:
-            self.token_window.popleft()
-        
-        # 计算时间窗口内的吞吐量
-        if self.request_window:
-            window_requests = len(self.request_window)
-            window_duration = current_time - self.request_window[0][0]
-            if window_duration > 0:
-                self.requests_per_second.append(window_requests / window_duration)
-        
-        if self.token_window:
-            window_tokens = sum(tokens for _, tokens in self.token_window)
-            window_duration = current_time - self.token_window[0][0]
-            if window_duration > 0:
-                self.tokens_per_second.append(window_tokens / window_duration)
+        with self._lock:
+            # 移除超出时间窗口的请求
+            while self.request_window and current_time - self.request_window[0][0] > self.window_size:
+                self.request_window.popleft()
+            
+            # 移除超出时间窗口的token记录
+            while self.token_timestamps and current_time - self.token_timestamps[0][0] > self.window_size:
+                self.token_timestamps.popleft()
+            
+            # 计算时间窗口内的请求吞吐量
+            if self.request_window:
+                window_requests = len(self.request_window)
+                window_duration = current_time - self.request_window[0][0]
+                if window_duration > 0:
+                    self.requests_per_second.append(window_requests / window_duration)
+            elif len(self.requests_per_second) > 0 and self.monitoring:
+                # 如果窗口中没有请求但测试仍在进行，记录为0
+                self.requests_per_second.append(0.0)
+            
+            # 计算时间窗口内的token吞吐量
+            if self.token_timestamps:
+                window_tokens = sum(tokens for _, tokens in self.token_timestamps)
+                window_duration = current_time - self.token_timestamps[0][0]
+                if window_duration > 0:
+                    self.tokens_per_second.append(window_tokens / window_duration)
+            elif len(self.tokens_per_second) > 0 and self.monitoring:
+                # 如果窗口中没有token但测试仍在进行，记录为0
+                self.tokens_per_second.append(0.0)
     
     def record_request(self, response_time: float, first_token_latency: float, tokens: int, is_error: bool = False, is_timeout: bool = False):
         """记录请求指标"""
@@ -237,11 +258,23 @@ class PerformanceMonitor:
         if is_timeout:
             self.timeout_count += 1
         
-        # 更新时间窗口
+        # 更新请求时间窗口
         if response_time > 0:
-            self.request_window.append((current_time, 1))
-            self.token_window.append((current_time, tokens))
+            with self._lock:
+                self.request_window.append((current_time, 1))
             self._update_throughput_metrics(current_time)
+    
+    def record_token(self, token_count: int = 1):
+        """记录流式响应中生成的token"""
+        current_time = time.time()
+        
+        with self._lock:
+            self.token_timestamps.append((current_time, token_count))
+        
+        # 如果距离上次更新超过更新间隔，则更新指标
+        if current_time - self.last_metric_update >= self.metric_update_interval:
+            self._update_throughput_metrics(current_time)
+            self.last_metric_update = current_time
     
     def get_metrics(self) -> Dict[str, List[float]]:
         """获取收集的指标"""

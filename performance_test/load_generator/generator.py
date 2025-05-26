@@ -125,7 +125,14 @@ class LoadGenerator:
                             if chunk:
                                 data = json.loads(chunk)
                                 if 'response' in data:
-                                    full_response += data['response']
+                                    token_text = data['response']
+                                    full_response += token_text
+                                    
+                                    # 计算当前token的数量并记录到监控器
+                                    if self.monitor:
+                                        token_count = self.count_tokens(token_text)
+                                        if token_count > 0:
+                                            self.monitor.record_token(token_count)
                         except:
                             continue
                 
